@@ -7,11 +7,10 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
 
 1. Clone the repo and run `make build`
 2. Initialize the CLI with `./dist/getlit init`
-3. Add an EVM compatible wallet private key or recovery phrase for
-   authentication.
-4. Choose the Blockchain network you'd like to use to grant access to
+3. Choose the Blockchain and network you'd like to use to grant access to
    your encrypted content.
-5. Choose the version of the Lit network to use or accept the default.
+4. Add an EVM compatible wallet private key for
+   authentication.
 
 ## Encrypt and store content
 1. Call `./dist/getlit encrypt` and pass in the data you'd like to
@@ -22,7 +21,7 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
    with.
 3. Choose the method on the contract you'd like to call to run the
    verification.
-4. Enter the parameters needed for the method.
+4. Enter the parameters needed for the method as a comma separated list.
 5. Choose the comparison type for testing the return values of the
    verification method.
 6. The CLI will encrypt your content, set the conditions in the Lit
@@ -38,11 +37,22 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
    print to STDOUT.
 
 ## Test values
+
 Private Key: 
+
+Blockchain: polygon
+
 Network: mumbai
+
 Contract Address: 
-Method: verify
+
+Method Name: verify
+
 Params: :user_address
+
 Comparator: "=="
+
 Comparison Key: ""
+
 Comparison Value: "true"
+
