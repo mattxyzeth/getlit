@@ -38,19 +38,42 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
 
 ## Test values
 
-Private Key: 
+Private Key:
 
 Blockchain: polygon
 
 Network: mumbai
 
-Contract Address: 
+Contract Address: 0x465fe903849d4d42ae674017BB5C7e20C9eB71a8
 
 Method Name: verify
 
 Params: :userAddress
 
-Comparator: "=="
+Function ABI:
+```json
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "node",
+      "type": "address"
+    }
+  ],
+  "name": "verify",
+  "outputs": [
+    {
+      "internalType": "bool",
+      "name": "",
+      "type": "bool"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+}
+```
+
+Comparator: "="
 
 Comparison Key: ""
 
