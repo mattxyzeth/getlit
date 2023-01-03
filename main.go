@@ -2,17 +2,27 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"getlit/account"
 	"getlit/config"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"encoding/hex"
+	"context"
+
+	"github.com/crcls/lit-go-sdk/auth"
+	"github.com/crcls/lit-go-sdk/client"
+	"github.com/crcls/lit-go-sdk/conditions"
+	"github.com/crcls/lit-go-sdk/crypto"
 )
 
 var CMDS = map[string]string{
 	"init":    "Initialize the CLI.",
-	"encrypt": "Encrypt data and store on IPFS.",
+	"encrypt": "Encrypt data and store on IPFS. Pipe from a file or type your message and end the input with 'q'.",
 	"decrypt": "Retrieve and decrypt data.",
 	"help":    "Prints the help context.",
 }
@@ -85,6 +95,173 @@ func main() {
 
 			fmt.Println("\nGreat! You're all set up. Your settings have been saved to .getlit")
 			fmt.Println("Call help to see how to encrypt and decrypt your data using the Lit Protocol.")
+		case "encrypt":
+			if !initialized() {
+				fmt.Fprintf(os.Stderr, "Not initialized. Please run `init` first.")
+				return
+			}
+
+			c := config.Load()
+			account, err := account.New(c)
+			if err != nil {
+				panic(err)
+			}
+
+			data := make([]byte, 0)
+			reader := bufio.NewReader(os.Stdin)
+
+			fmt.Println("Enter the content you'd like to encrypt. Close the input by typing `q` on a new line and pressing enter.")
+			for {
+				line, err := reader.ReadBytes('\n')
+				if err != nil {
+					if err == io.EOF {
+						break
+					} else {
+						panic(err)
+					}
+				}
+
+				if strings.TrimSpace(string(line)) == "q" {
+					break
+				}
+
+				data = append(data, line...)
+			}
+
+			fmt.Printf("Enter an address for a contract that will perform the verification: ")
+			address, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("Enter the name of the method to call on this contract: ")
+			method, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("Enter the method arguments to call the verification method (CSV): ")
+			args, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("Enter the function ABI json: ")
+			abiData := make([]byte, 0)
+			brackets := make([]byte, 0)
+			for {
+				line, err := reader.ReadBytes('\n')
+				if err != nil {
+					if err == io.EOF {
+						break
+					} else {
+						panic(err)
+					}
+				}
+				abiData = append(abiData, line...)
+
+				str := strings.TrimSpace(string(line))
+
+				if str == "{" || str == "[" {
+					brackets = append(brackets, line[0])
+				}
+
+				if str == "}" || str == "]" {
+					brackets = brackets[:len(brackets)-1]
+				}
+
+				if len(brackets) == 0 {
+					break
+				}
+			}
+
+			abi := conditions.AbiMember{}
+			if err := json.Unmarshal(abiData, &abi); err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("What is the name of the key from the return values that should be used for comparison (return for unnamed key): ")
+			compKey, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("How should the return value be compared(=, >, >=, <=, <): ")
+			comparator, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("What value should be used to compare the return value against: ")
+			compValue, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			authSig, err := account.Siwe(c.ChainId, "")
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("AuthSig:")
+			PrintJSON(*authSig)
+
+			condition := conditions.EvmContractCondition{
+				ContractAddress: strings.TrimSpace(address),
+				FunctionName:    strings.TrimSpace(method),
+				FunctionParams:  strings.Split(strings.TrimSpace(args), ","),
+				FunctionAbi:     abi,
+				Chain:           c.Network,
+				ReturnValueTest: conditions.ReturnValueTest{
+					Key:        strings.TrimSpace(compKey),
+					Comparator: strings.TrimSpace(comparator),
+					Value:      strings.TrimSpace(compValue),
+				},
+			}
+
+			fmt.Println("EvmContractCondition:")
+			PrintJSON(condition)
+
+			symmetricKey := crypto.Prng(32)
+			ciphertext := crypto.AesEncrypt(symmetricKey, data)
+
+			fmt.Printf("SymmetricKey: %s\n", hex.EncodeToString(symmetricKey))
+			fmt.Printf("CipherText: %s\n", hex.EncodeToString(ciphertext))
+
+			litClient, err := client.New(context.Background(), c.LitConfig)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				return
+			}
+
+			encryptedKey, err := litClient.SaveEncryptionKey(
+				context.Background(),
+				symmetricKey,
+				*authSig,
+				[]conditions.EvmContractCondition{condition},
+				c.ChainId,
+				true,
+			)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+			}
+
+			fmt.Printf("\nEncryptedKey: %s\n", encryptedKey)
 		}
 	}
+}
+
+type marshalable interface {
+	auth.AuthSig | conditions.EvmContractCondition
+}
+
+func PrintJSON[T marshalable](data T) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+
+	var out bytes.Buffer
+	json.Indent(&out, b, "", "\t")
+	out.WriteTo(os.Stdout)
+	fmt.Println("\n")
 }

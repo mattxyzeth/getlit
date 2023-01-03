@@ -26,7 +26,7 @@ func EIP4361(address ethgo.Address, msg, chain, nonce, date string) string {
 %s
 
 %s
-URI: getlit-cli
+URI: http://example.com
 Version: 1
 Chain ID: %s
 Nonce: %s

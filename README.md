@@ -48,7 +48,7 @@ Contract Address:
 
 Method Name: verify
 
-Params: :user_address
+Params: :userAddress
 
 Comparator: "=="
 

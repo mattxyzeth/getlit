@@ -28,17 +28,20 @@ func New(c *config.Config) (*Account, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	keyfile, err := os.Create(filepath.Join(c.WorkingDir, ".getlit", "keyfile"))
-	if err != nil {
-		return nil, err
-	}
-	keyfile.Close()
-
-	if err := crypto.SaveECDSA(filepath.Join(c.WorkingDir, ".getlit", "keyfile"), privKey); err != nil {
-		return nil, err
-	}
 	wallet := wallet.NewKey(privKey)
+
+	_, derr := os.Stat(filepath.Join(c.WorkingDir, ".getlit", "keyfile"))
+	if os.IsNotExist(derr) {
+		keyfile, err := os.Create(filepath.Join(c.WorkingDir, ".getlit", "keyfile"))
+		if err != nil {
+			return nil, err
+		}
+		keyfile.Close()
+
+		if err := crypto.SaveECDSA(filepath.Join(c.WorkingDir, ".getlit", "keyfile"), privKey); err != nil {
+			return nil, err
+		}
+	}
 
 	return &Account{
 		Address: wallet.Address(),
