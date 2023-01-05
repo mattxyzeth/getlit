@@ -5,13 +5,15 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
 
 ## Initialization Instructions
 
-1. Make sure you have Go installed with `go version`. If not checkout https://go.dev/doc/install
+1. Make sure you have Go 1.18 or > installed with `go version`. If not checkout https://go.dev/doc/install
 2. Clone the repo and run `make build`
 3. Initialize the CLI with `./dist/getlit init`
 4. Choose the Blockchain and network you'd like to use to grant access to
    your encrypted content.
 5. Add an EVM compatible wallet private key for
    authentication.
+
+***PRO TIP: turn on debug output with `LIT_DEBUG=true`***
 
 ## Encrypt and store content
 1. Call `./dist/getlit encrypt` and type in the message you'd like to

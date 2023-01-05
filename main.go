@@ -147,36 +147,8 @@ func main() {
 			}
 
 			fmt.Printf("Enter the function ABI json: ")
-			abiData := make([]byte, 0)
-			brackets := make([]byte, 0)
-			for {
-				line, err := reader.ReadBytes('\n')
-				if err != nil {
-					if err == io.EOF {
-						break
-					} else {
-						panic(err)
-					}
-				}
-				abiData = append(abiData, line...)
-
-				str := strings.TrimSpace(string(line))
-
-				if str == "{" || str == "[" {
-					brackets = append(brackets, line[0])
-				}
-
-				if str == "}" || str == "]" {
-					brackets = brackets[:len(brackets)-1]
-				}
-
-				if len(brackets) == 0 {
-					break
-				}
-			}
-
 			abi := conditions.AbiMember{}
-			if err := json.Unmarshal(abiData, &abi); err != nil {
+			if err := CaptureJSON(&abi); err != nil {
 				panic(err)
 			}
 
@@ -246,12 +218,75 @@ func main() {
 			}
 
 			fmt.Printf("\nEncryptedKey: %s\n", encryptedKey)
+		case "decrypt":
+			if !initialized() {
+				fmt.Fprintf(os.Stderr, "Not initialized. Please run `init` first.")
+				return
+			}
+
+			c := config.Load()
+			account, err := account.New(c)
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Println("Enter the EvmContractCondition JSON object:")
+			cond := conditions.EvmContractCondition{}
+			if err := CaptureJSON(&cond); err != nil {
+				panic(err)
+			}
+
+			reader := bufio.NewReader(os.Stdin)
+
+			fmt.Printf("Enter the encrypted key value: ")
+			encryptedKey, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("Enter the ciphertext value: ")
+			ciphertextHex, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+
+			authSig, err := account.Siwe(c.ChainId, "")
+			if err != nil {
+				panic(err)
+			}
+
+			keyParams := client.EncryptedKeyParams{
+				AuthSig:               authSig,
+				Chain:                 c.Network,
+				EvmContractConditions: []*conditions.EvmContractCondition{&cond},
+				ToDecrypt:             strings.TrimSpace(encryptedKey),
+			}
+
+			litClient, err := client.New(context.Background(), c.LitConfig)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				return
+			}
+
+			symmetricKey, err := litClient.GetEncryptionKey(context.Background(), keyParams)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				return
+			}
+
+			ciphertext, err := hex.DecodeString(strings.TrimSpace(ciphertextHex))
+			if err != nil {
+				panic(err)
+			}
+
+			plaintext := crypto.AesDecrypt(symmetricKey, ciphertext)
+			fmt.Printf("Decrypted message: %s\n", string(plaintext))
 		}
 	}
 }
 
 type marshalable interface {
-	auth.AuthSig | conditions.EvmContractCondition
+	auth.AuthSig | conditions.EvmContractCondition | conditions.AbiMember
 }
 
 func PrintJSON[T marshalable](data T) {
@@ -264,4 +299,43 @@ func PrintJSON[T marshalable](data T) {
 	json.Indent(&out, b, "", "\t")
 	out.WriteTo(os.Stdout)
 	fmt.Println("\n")
+}
+
+func CaptureJSON[T marshalable](s *T) error {
+	data := make([]byte, 0)
+	brackets := make([]byte, 0)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Split(bufio.ScanBytes)
+	for scanner.Scan() {
+		b := scanner.Bytes()
+
+		if err := scanner.Err(); err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				return err
+			}
+		}
+		data = append(data, b...)
+
+		str := string(b)
+
+		if str == "{" || str == "[" {
+			brackets = append(brackets, b[0])
+		}
+
+		if str == "}" || str == "]" {
+			brackets = brackets[:len(brackets)-1]
+		}
+
+		if len(brackets) == 0 {
+			break
+		}
+	}
+
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+
+	return nil
 }

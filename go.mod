@@ -3,7 +3,7 @@ module getlit
 go 1.19
 
 require (
-	github.com/crcls/lit-go-sdk v0.0.0-20230103203721-f29b51d330fb
+	github.com/crcls/lit-go-sdk v0.0.0-20230105184517-9b145374c2a4
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/ipfs/go-cid v0.3.2
 	github.com/ipfs/go-ipfs-api v0.3.0
