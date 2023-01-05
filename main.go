@@ -21,9 +21,9 @@ import (
 )
 
 var CMDS = map[string]string{
-	"init":    "Initialize the CLI.",
-	"encrypt": "Encrypt data and store on IPFS. Pipe from a file or type your message and end the input with 'q'.",
-	"decrypt": "Retrieve and decrypt data.",
+	"init":    "Initialize the CLI and wallet account.",
+	"encrypt": "Encrypt data and store the Lit conditions with the network. Type your message and end the input with 'q'.",
+	"decrypt": "Retrieve the symmetric key and decrypt the ciphertext.",
 	"help":    "Prints the help context.",
 }
 
