@@ -8,14 +8,15 @@ https://github.com/crcls/lit-go-sdk that I'm working on.
 1. Make sure you have Go 1.18 or > installed with `go version`. If not checkout https://go.dev/doc/install
 2. Clone the repo and run `make build`
 3. Initialize the CLI with `./dist/getlit init`
-4. Choose the Blockchain and network you'd like to use to grant access to
+4. Choose the
+   [network](https://developer.litprotocol.com/support/supportedChains) you'd like to use to grant access to
    your encrypted content.
 5. Add an EVM compatible wallet private key for
    authentication.
 
 ***PRO TIP: turn on debug output with `LIT_DEBUG=true`***
 
-## Encrypt and store content
+## Encrypt and store condition
 1. Call `./dist/getlit encrypt` and type in the message you'd like to
    encrypt. End the input by typing `q` on a new line and enter.
 2. So far, this application only supports EVM contract conditions for
@@ -80,11 +81,11 @@ Function ABI:
 }
 ```
 
-Comparator: "="
+Comparator: =
 
-Comparison Key: ""
+Comparison Key: (leave blank)
 
-Comparison Value: "true"
+Comparison Value: true
 
 ## Issues and Comments
 Please open an issue in the lit-go-sdk repo.
