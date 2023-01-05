@@ -84,11 +84,13 @@ func main() {
 				panic(err)
 			}
 
+			// Creates and saves the config to the current directory
 			c := config.New(strings.TrimSpace(network), strings.TrimSpace(pk))
 			if err := c.Save(); err != nil {
 				panic(err)
 			}
 
+			// Creates and saves the keyfile for the account
 			if _, err := account.New(c); err != nil {
 				panic(err)
 			}
@@ -101,6 +103,7 @@ func main() {
 				return
 			}
 
+			// These will load the config and account from the saved values from init
 			c := config.Load()
 			account, err := account.New(c)
 			if err != nil {
@@ -110,6 +113,7 @@ func main() {
 			data := make([]byte, 0)
 			reader := bufio.NewReader(os.Stdin)
 
+			// Any content can be entered with mulitple lines. Maybe not the best method to capture content but for this it's fine.
 			fmt.Println("Enter the content you'd like to encrypt. Close the input by typing `q` on a new line and pressing enter.")
 			for {
 				line, err := reader.ReadBytes('\n')
@@ -128,6 +132,7 @@ func main() {
 				data = append(data, line...)
 			}
 
+			// Collect the condition details
 			fmt.Printf("Enter an address for a contract that will perform the verification: ")
 			address, err := reader.ReadString('\n')
 			if err != nil {
@@ -170,12 +175,16 @@ func main() {
 				panic(err)
 			}
 
+			// Generate the AuthSig. Currently, this is not part of the SDK.
+			// I figured that the consuming application would want to implement
+			// it in a specific way. If you disagree, please open an issue in:
+			// https://github.com/crcls/lit-go-sdk/issues
 			authSig, err := account.Siwe(c.ChainId, "")
 			if err != nil {
 				panic(err)
 			}
 			fmt.Println("AuthSig:")
-			PrintJSON(*authSig)
+			PrintJSON(authSig)
 
 			condition := conditions.EvmContractCondition{
 				ContractAddress: strings.TrimSpace(address),
@@ -199,6 +208,7 @@ func main() {
 			fmt.Printf("SymmetricKey: %s\n", hex.EncodeToString(symmetricKey))
 			fmt.Printf("CipherText: %s\n", hex.EncodeToString(ciphertext))
 
+			// Create an instance of the Lit Client
 			litClient, err := client.New(context.Background(), c.LitConfig)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
@@ -208,7 +218,7 @@ func main() {
 			encryptedKey, err := litClient.SaveEncryptionKey(
 				context.Background(),
 				symmetricKey,
-				*authSig,
+				authSig,
 				[]conditions.EvmContractCondition{condition},
 				c.ChainId,
 				true,
@@ -224,6 +234,7 @@ func main() {
 				return
 			}
 
+			// These will load the config and account from the saved values from init
 			c := config.Load()
 			account, err := account.New(c)
 			if err != nil {
@@ -255,32 +266,41 @@ func main() {
 				panic(err)
 			}
 
-			keyParams := client.EncryptedKeyParams{
-				AuthSig:               authSig,
-				Chain:                 c.Network,
-				EvmContractConditions: []*conditions.EvmContractCondition{&cond},
-				ToDecrypt:             strings.TrimSpace(encryptedKey),
-			}
-
+			// Create an instance of the Lit Client
 			litClient, err := client.New(context.Background(), c.LitConfig)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
 				return
 			}
 
-			symmetricKey, err := litClient.GetEncryptionKey(context.Background(), keyParams)
+			// Build the request params to decrypt the symmetric key.
+			keyParams := client.EncryptedKeyParams{
+				AuthSig:               authSig,
+				Chain:                 c.Network,
+				EvmContractConditions: []conditions.EvmContractCondition{cond},
+				ToDecrypt:             strings.TrimSpace(encryptedKey),
+			}
+
+			// Send the request to the Lit network
+			// A context can be used here to set the response timeout or to manually cancel the request..
+			symmetricKey, err := litClient.GetEncryptionKey(context.Background(), &keyParams)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
+				fmt.Println("\nFailed to decrypt the message.")
 				return
 			}
 
+			// Convert the ciphertext back to bytes
 			ciphertext, err := hex.DecodeString(strings.TrimSpace(ciphertextHex))
 			if err != nil {
 				panic(err)
 			}
 
+			// lit-go-sdk provides the AES methods and includes padding.
+			// The IV is prepended to the ciphertext. Not sure if this is how
+			// the JS SDK does it.
 			plaintext := crypto.AesDecrypt(symmetricKey, ciphertext)
-			fmt.Printf("Decrypted message: %s\n", string(plaintext))
+			fmt.Printf("\nDecrypted message: %s\n", string(plaintext))
 		}
 	}
 }

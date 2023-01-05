@@ -33,8 +33,8 @@ Nonce: %s
 Issued At: %s`, address, msg, chain, nonce, date)
 }
 
-func (a *Account) Siwe(chain, msg string) (*auth.AuthSig, error) {
-	if a.AuthSig != nil {
+func (a *Account) Siwe(chain, msg string) (auth.AuthSig, error) {
+	if a.AuthSig.Sig != "" {
 		return a.AuthSig, nil
 	}
 
@@ -45,10 +45,10 @@ func (a *Account) Siwe(chain, msg string) (*auth.AuthSig, error) {
 
 	sig, err := a.Wallet.SignMsg(msgBytes)
 	if err != nil {
-		return nil, err
+		return auth.AuthSig{}, err
 	}
 
-	authSig := &auth.AuthSig{
+	authSig := auth.AuthSig{
 		Address:       a.Address.String(),
 		DerivedVia:    "ethgo.Key.SignMsg",
 		SignedMessage: eip4361,

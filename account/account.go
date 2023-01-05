@@ -15,7 +15,7 @@ import (
 
 type Account struct {
 	Address ethgo.Address
-	AuthSig *auth.AuthSig
+	AuthSig auth.AuthSig
 	Wallet  *wallet.Key
 }
 

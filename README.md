@@ -86,3 +86,6 @@ Comparison Key: ""
 
 Comparison Value: "true"
 
+## Issues and Comments
+Please open an issue in the lit-go-sdk repo.
+https://github.com/crcls/lit-go-sdk/issues

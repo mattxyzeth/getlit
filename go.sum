@@ -177,6 +177,8 @@ github.com/crcls/lit-go-sdk v0.0.0-20230103203721-f29b51d330fb h1:4+F0AdrkkmrGsS
 github.com/crcls/lit-go-sdk v0.0.0-20230103203721-f29b51d330fb/go.mod h1:n8JBrifC1Mpr8KxLlh+ebv9zFor1cBJYdsI3TmTwLtg=
 github.com/crcls/lit-go-sdk v0.0.0-20230105184517-9b145374c2a4 h1:znYM0649RQNT/vOHVdApCKgwucXSBmOQX87kU9n1lIM=
 github.com/crcls/lit-go-sdk v0.0.0-20230105184517-9b145374c2a4/go.mod h1:n8JBrifC1Mpr8KxLlh+ebv9zFor1cBJYdsI3TmTwLtg=
+github.com/crcls/lit-go-sdk v0.0.0-20230105194358-ed5d930d690b h1:+XX7oNn+r8b8g85Ev0jOkiqY/9R39bo/PzJ5oNRmacM=
+github.com/crcls/lit-go-sdk v0.0.0-20230105194358-ed5d930d690b/go.mod h1:n8JBrifC1Mpr8KxLlh+ebv9zFor1cBJYdsI3TmTwLtg=
 github.com/creack/pty v1.1.7/go.mod h1:lj5s0c3V2DBrqTV7llrYr5NG6My20zk30Fl46Y7DoTY=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/cskr/pubsub v1.0.2 h1:vlOzMhl6PFn60gRlTQQsIfVwaPB/B/8MziK8FhEPt/0=
