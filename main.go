@@ -2,19 +2,20 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
+	"context"
+	"encoding/hex"
+	"flag"
 	"fmt"
 	"getlit/account"
 	"getlit/config"
+	"getlit/ethereum"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"encoding/hex"
-	"context"
 
-	"github.com/crcls/lit-go-sdk/auth"
+	"getlit/jsonUtils"
+
 	"github.com/crcls/lit-go-sdk/client"
 	"github.com/crcls/lit-go-sdk/conditions"
 	"github.com/crcls/lit-go-sdk/crypto"
@@ -22,10 +23,14 @@ import (
 
 var CMDS = map[string]string{
 	"init":    "Initialize the CLI and wallet account.",
-	"encrypt": "Encrypt data and store the Lit conditions with the network. Type your message and end the input with 'q'.",
+	"encrypt": "Encrypt data and store the Lit conditions with the network.",
 	"decrypt": "Retrieve the symmetric key and decrypt the ciphertext.",
 	"help":    "Prints the help context.",
 }
+
+var (
+	conditionType = flag.String("type", "evmcontract", "Choose the condition type you'd like to use.")
+)
 
 func initialized() bool {
 	wd, err := os.Getwd()
@@ -48,12 +53,17 @@ func initialized() bool {
 }
 
 func main() {
+	flag.Parse()
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "help":
 			fmt.Println("")
 			fmt.Println("Usage: bui command [OPTIONS]")
+			fmt.Println("Options:")
+			fmt.Println("  -type\t\t*required* Set the condition type you'd like to use.\n\t\tValid options are:\n\t\t  accesscontrol\n\t\t  evmcontract\n\t\t  solrpc\n\t\t  unified")
 			fmt.Println("")
+			fmt.Println("Commands:")
 
 			for cmd, description := range CMDS {
 				fmt.Printf("  %s\t%s\n", cmd, description)
@@ -91,7 +101,7 @@ func main() {
 			}
 
 			// Creates and saves the keyfile for the account
-			if _, err := account.New(c); err != nil {
+			if _, err := account.NewEthereum(c); err != nil {
 				panic(err)
 			}
 
@@ -102,17 +112,13 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Not initialized. Please run `init` first.")
 				return
 			}
-
+			fmt.Printf("\x1b[1mCondition type set to: %s (Change with the -type option)\n\x1b[0m", *conditionType)
 			// These will load the config and account from the saved values from init
 			c := config.Load()
-			account, err := account.New(c)
-			if err != nil {
-				panic(err)
-			}
+			a, err := account.New(c, *conditionType)
 
 			data := make([]byte, 0)
 			reader := bufio.NewReader(os.Stdin)
-
 			// Any content can be entered with mulitple lines. Maybe not the best method to capture content but for this it's fine.
 			fmt.Println("Enter the content you'd like to encrypt. Close the input by typing `q` on a new line and pressing enter.")
 			for {
@@ -132,81 +138,8 @@ func main() {
 				data = append(data, line...)
 			}
 
-			// Collect the condition details
-			fmt.Printf("Enter an address for a contract that will perform the verification: ")
-			address, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("Enter the name of the method to call on this contract: ")
-			method, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("Enter the method arguments to call the verification method (CSV): ")
-			args, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("Enter the function ABI json: ")
-			abi := conditions.AbiMember{}
-			if err := CaptureJSON(&abi); err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("What is the name of the key from the return values that should be used for comparison (return for unnamed key): ")
-			compKey, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("How should the return value be compared(=, >, >=, <=, <): ")
-			comparator, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("What value should be used to compare the return value against: ")
-			compValue, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-
-			// Generate the AuthSig. Currently, this is not part of the SDK.
-			// I figured that the consuming application would want to implement
-			// it in a specific way. If you disagree, please open an issue in:
-			// https://github.com/crcls/lit-go-sdk/issues
-			authSig, err := account.Siwe(c.ChainId, "")
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println("AuthSig:")
-			PrintJSON(authSig)
-
-			condition := conditions.EvmContractCondition{
-				ContractAddress: strings.TrimSpace(address),
-				FunctionName:    strings.TrimSpace(method),
-				FunctionParams:  strings.Split(strings.TrimSpace(args), ","),
-				FunctionAbi:     abi,
-				Chain:           c.Network,
-				ReturnValueTest: conditions.ReturnValueTest{
-					Key:        strings.TrimSpace(compKey),
-					Comparator: strings.TrimSpace(comparator),
-					Value:      strings.TrimSpace(compValue),
-				},
-			}
-
-			fmt.Println("EvmContractCondition:")
-			PrintJSON(condition)
-
 			symmetricKey := crypto.Prng(32)
 			ciphertext := crypto.AesEncrypt(symmetricKey, data)
-
-			fmt.Printf("SymmetricKey: %s\n", hex.EncodeToString(symmetricKey))
-			fmt.Printf("CipherText: %s\n", hex.EncodeToString(ciphertext))
 
 			// Create an instance of the Lit Client
 			litClient, err := client.New(context.Background(), c.LitConfig)
@@ -215,35 +148,69 @@ func main() {
 				return
 			}
 
-			encryptedKey, err := litClient.SaveEncryptionKey(
-				context.Background(),
-				symmetricKey,
-				authSig,
-				[]conditions.EvmContractCondition{condition},
-				c.ChainId,
-				true,
-			)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			var encryptedKey string
+
+			switch *conditionType {
+			case "evmcontract":
+				conds := ethereum.CreateEvmContractCondition(a.Chain)
+				fmt.Println("\x1b[1mEvmContractCondition:\x1b[0m")
+				jsonUtils.PrintJSON(conds[0])
+
+				encryptedKey, err = client.SaveEncryptionKey(
+					litClient,
+					context.Background(),
+					symmetricKey,
+					a.AuthSig,
+					conds,
+					a.Chain,
+					true,
+				)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, err.Error())
+					os.Exit(1)
+					return
+				}
+			case "accesscontrol":
+				conds := ethereum.CreateAccessControlCondition()
+				fmt.Println("Condition:")
+				jsonUtils.PrintJSON(conds[0])
+
+				encryptedKey, err = client.SaveEncryptionKey(
+					litClient,
+					context.Background(),
+					symmetricKey,
+					a.AuthSig,
+					conds,
+					a.Chain,
+					true,
+				)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, err.Error())
+					os.Exit(1)
+					return
+				}
 			}
 
-			fmt.Printf("\nEncryptedKey: %s\n", encryptedKey)
+			fmt.Printf("\x1b[1m\nSymmetricKey:\x1b[0m %s\n", hex.EncodeToString(symmetricKey))
+			fmt.Printf("\x1b[1mCipherText:\x1b[0m %s\n", hex.EncodeToString(ciphertext))
+			fmt.Printf("\x1b[1mEncryptedKey:\x1b[0m %s\n", encryptedKey)
 		case "decrypt":
 			if !initialized() {
 				fmt.Fprintf(os.Stderr, "Not initialized. Please run `init` first.")
 				return
 			}
+			fmt.Printf("\x1b[1mCondition type set to: %s\n\n\x1b[0m", *conditionType)
 
 			// These will load the config and account from the saved values from init
 			c := config.Load()
-			account, err := account.New(c)
+			a, err := account.NewEthereum(c)
 			if err != nil {
 				panic(err)
 			}
 
 			fmt.Println("Enter the EvmContractCondition JSON object:")
 			cond := conditions.EvmContractCondition{}
-			if err := CaptureJSON(&cond); err != nil {
+			if err := jsonUtils.CaptureJSON(&cond); err != nil {
 				panic(err)
 			}
 
@@ -261,11 +228,6 @@ func main() {
 				panic(err)
 			}
 
-			authSig, err := account.Siwe(c.ChainId, "")
-			if err != nil {
-				panic(err)
-			}
-
 			// Create an instance of the Lit Client
 			litClient, err := client.New(context.Background(), c.LitConfig)
 			if err != nil {
@@ -273,17 +235,16 @@ func main() {
 				return
 			}
 
-			// Build the request params to decrypt the symmetric key.
-			keyParams := client.EncryptedKeyParams{
-				AuthSig:               authSig,
-				Chain:                 c.Network,
-				EvmContractConditions: []conditions.EvmContractCondition{cond},
-				ToDecrypt:             strings.TrimSpace(encryptedKey),
-			}
-
 			// Send the request to the Lit network
 			// A context can be used here to set the response timeout or to manually cancel the request..
-			symmetricKey, err := litClient.GetEncryptionKey(context.Background(), &keyParams)
+			symmetricKey, err := client.GetEncryptionKey(
+				litClient,
+				context.Background(),
+				a.AuthSig,
+				[]conditions.EvmContractCondition{cond},
+				a.Chain,
+				strings.TrimSpace(encryptedKey),
+			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
 				fmt.Println("\nFailed to decrypt the message.")
@@ -303,59 +264,4 @@ func main() {
 			fmt.Printf("\nDecrypted message: %s\n", string(plaintext))
 		}
 	}
-}
-
-type marshalable interface {
-	auth.AuthSig | conditions.EvmContractCondition | conditions.AbiMember
-}
-
-func PrintJSON[T marshalable](data T) {
-	b, err := json.Marshal(data)
-	if err != nil {
-		panic(err)
-	}
-
-	var out bytes.Buffer
-	json.Indent(&out, b, "", "\t")
-	out.WriteTo(os.Stdout)
-	fmt.Println("\n")
-}
-
-func CaptureJSON[T marshalable](s *T) error {
-	data := make([]byte, 0)
-	brackets := make([]byte, 0)
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Split(bufio.ScanBytes)
-	for scanner.Scan() {
-		b := scanner.Bytes()
-
-		if err := scanner.Err(); err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				return err
-			}
-		}
-		data = append(data, b...)
-
-		str := string(b)
-
-		if str == "{" || str == "[" {
-			brackets = append(brackets, b[0])
-		}
-
-		if str == "}" || str == "]" {
-			brackets = brackets[:len(brackets)-1]
-		}
-
-		if len(brackets) == 0 {
-			break
-		}
-	}
-
-	if err := json.Unmarshal(data, s); err != nil {
-		return err
-	}
-
-	return nil
 }

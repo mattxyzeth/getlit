@@ -33,29 +33,23 @@ Nonce: %s
 Issued At: %s`, address, msg, chain, nonce, date)
 }
 
-func (a *Account) Siwe(chain, msg string) (auth.AuthSig, error) {
-	if a.AuthSig.Sig != "" {
-		return a.AuthSig, nil
-	}
-
+func Siwe(wallet *wallet.Key, chain, msg string) (auth.AuthSig, error) {
 	date := time.Now()
 
-	eip4361 := EIP4361(a.Address, msg, chain, strconv.FormatInt(date.Unix(), 10), date.Format(time.RFC3339))
+	eip4361 := EIP4361(wallet.Address(), msg, chain, strconv.FormatInt(date.Unix(), 10), date.Format(time.RFC3339))
 	msgBytes := EIP191(eip4361)
 
-	sig, err := a.Wallet.SignMsg(msgBytes)
+	sig, err := wallet.SignMsg(msgBytes)
 	if err != nil {
 		return auth.AuthSig{}, err
 	}
 
 	authSig := auth.AuthSig{
-		Address:       a.Address.String(),
+		Address:       wallet.Address().String(),
 		DerivedVia:    "ethgo.Key.SignMsg",
 		SignedMessage: eip4361,
 		Sig:           "0x" + hex.EncodeToString(sig),
 	}
-
-	a.AuthSig = authSig
 
 	return authSig, nil
 }
